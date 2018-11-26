@@ -8,39 +8,70 @@
 
 import UIKit
 import AVFoundation
+import RxSwift
+import RxCocoa
 
-class PokemonVC: UIViewController, UICollectionViewDelegate, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, UISearchBarDelegate {
+class PokemonVC: UIViewController, UICollectionViewDelegateFlowLayout {
     
     @IBOutlet weak var pokeCollection: UICollectionView!
     
     @IBOutlet weak var searchBar: UISearchBar!
     
+    // dispose bag
+    let disposeBag = DisposeBag()
     
+    fileprivate var pokemons = [Pokemon]()
+    var filteredPokemons = [Pokemon]()
     
-    var pokemons = [Pokemon]()
+    fileprivate lazy var pokemonsObservable: Observable<[Pokemon]> = {
+        return Observable.just(pokemons)
+    }()
+    
+    fileprivate lazy var filteredPokemonsObservable: Observable<[Pokemon]> = {
+        return Observable.just(filteredPokemons)
+    }()
     
     let cellID = "PokeCell"
     
     var musicPlayer : AVAudioPlayer!
     
     //For searching
-    var isInSearchingMode = false
-    var filteredPokemons = [Pokemon]()
+   // var isInSearchingMode = false
+    
+    
+    // For searching
+    private var searchValue: BehaviorRelay<String> = BehaviorRelay(value: "")
+    fileprivate lazy var searchValueObservable: Observable<String> = {
+        return searchValue.asObservable()
+    }()
     
     
 
     override func viewDidLoad() {
         super.viewDidLoad()
        
-        pokeCollection.delegate = self
-        pokeCollection.dataSource = self
-        searchBar.delegate = self
+        //pokeCollection.delegate = self
+        //pokeCollection.dataSource = self
+        //searchBar.delegate = self
         
         //Change the button to done
         searchBar.returnKeyType = UIReturnKeyType.done
         
-        
+        // Do the parsing of the pokemons into the array
         parsePokemonCSC()
+        
+        // for observing the search value
+        searchValueObservable.subscribe { [weak self](value) in
+            print("value: \(value)")
+            let lowercase: String = value.element!.lowercased()
+            self?.filteredPokemons = (self?.pokemons.filter({$0.name.range(of: lowercase) != nil}))!
+            // Binding the filterPokemon
+
+            
+            print("nbr of items filetered: \(String(describing: self?.filteredPokemons.count))")
+        }.disposed(by: disposeBag)
+        
+        bindingCollectionViewToDataRx()
         
     }
     
@@ -67,8 +98,9 @@ class PokemonVC: UIViewController, UICollectionViewDelegate, UICollectionViewDat
         }
     }
     
-    
-    func parsePokemonCSC() {
+
+    // Parese the CSV to the array
+   fileprivate func parsePokemonCSC() {
         
         // To get the data from the CSV file, first we will need a path
         let path = Bundle.main.path(forResource: "pokemon", ofType: "csv")!
@@ -101,7 +133,46 @@ class PokemonVC: UIViewController, UICollectionViewDelegate, UICollectionViewDat
         
     }
     
-    func numberOfSections(in collectionView: UICollectionView) -> Int {
+    fileprivate func bindingCollectionViewToDataRx() {
+        
+        // binding the array of pokemons to the cells of the colectionview
+        pokemonsObservable.bind(to: pokeCollection.rx.items(cellIdentifier: cellID)) {
+             index , poke, cell in
+            
+            // the block comes with 3 different values"
+            // 1 - the index
+            // 2 - a unique pokemon (model)
+            // 3 - the cell
+            guard let cellInUse = cell as? PokeCell else {return}
+            
+            cellInUse.configureCell(pokemon: poke)
+            
+
+        }.disposed(by: disposeBag)
+        
+        // To get the selected row (the selected pokemon and pass it to the next view)
+        pokeCollection.rx.modelSelected(Pokemon.self).subscribe(onNext: { [weak self](pokemon) in
+            // Pass the selected pokemon to the next view
+            self?.performSegue(withIdentifier: "PokeDetailsVC", sender: pokemon)
+        }).disposed(by: disposeBag)
+        
+        
+        // Binding the search bar to the search item
+        
+        self.searchBar.rx.text
+            .orEmpty
+            .distinctUntilChanged()
+            .map({ (searchText) -> String in
+                searchText.lowercased()
+            })
+            .bind(to: searchValue) // search value
+            .disposed(by: disposeBag)
+
+        
+        
+    }
+    
+  /*  func numberOfSections(in collectionView: UICollectionView) -> Int {
         
         return 1
     }
@@ -164,7 +235,8 @@ class PokemonVC: UIViewController, UICollectionViewDelegate, UICollectionViewDat
         
         
     }
-    
+ 
+ */
     
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         
@@ -174,30 +246,32 @@ class PokemonVC: UIViewController, UICollectionViewDelegate, UICollectionViewDat
     
     
     //Let search the Pokemon array
-    
+    /*
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         
         
         //Let find out first if we are in the searching mode
         
-        if searchBar.text == nil || searchBar.text == ""{
-            isInSearchingMode = false
-            pokeCollection.reloadData()
-            view.endEditing(true)
-        } else {
-            
-            isInSearchingMode = true
-        
-            //Let change what was typed in lower case
-            let lowerCase = searchText.lowercased()
-            
-            //Now let add the objects from the pokemons array as the user type
-            
-            filteredPokemons = pokemons.filter({$0.name.range(of: lowerCase) != nil})
 
-            pokeCollection.reloadData()
-            
-        }
+//
+//        if searchBar.text == nil || searchBar.text == ""{
+//            isInSearchingMode = false
+//            pokeCollection.reloadData()
+//            view.endEditing(true)
+//        } else {
+//
+//            isInSearchingMode = true
+//
+//            //Let change what was typed in lower case
+//            let lowerCase = searchText.lowercased()
+//
+//            //Now let add the objects from the pokemons array as the user type
+//
+//            filteredPokemons = pokemons.filter({$0.name.range(of: lowerCase) != nil})
+//
+//            pokeCollection.reloadData()
+//
+//        }
     }
     
     
@@ -207,7 +281,7 @@ class PokemonVC: UIViewController, UICollectionViewDelegate, UICollectionViewDat
         view.endEditing(true)
     }
     
-    
+*/
     
 
     
